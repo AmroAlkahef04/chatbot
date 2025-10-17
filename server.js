@@ -1,8 +1,8 @@
 // server.js
 import express from "express";
 import fetch from "node-fetch";
-import dotenv from "dotenv";
 import cors from "cors";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Route: POST /chat
+// POST /chat
 app.post("/chat", async (req, res) => {
   const { company, message } = req.body;
 
@@ -19,32 +19,36 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    // --- Hugging Face free model endpoint ---
-    const HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
-    const HF_API_KEY = process.env.HF_API_KEY; // from your .env
-
-    const response = await fetch(HF_API_URL, {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${HF_API_KEY}`,
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: `You are a chatbot for ${company}. The user says: ${message}`,
-        parameters: { max_new_tokens: 200, temperature: 0.7 },
+        model: "mistralai/mixtral-8x7b-instruct", // or another available model
+        messages: [
+          {
+            role: "system",
+            content: `You are a helpful AI assistant for ${company}. Answer concisely and clearly.`,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
       }),
     });
 
-    // Hugging Face can return either an array or an error string
     const data = await response.json();
 
-    if (Array.isArray(data) && data[0]?.generated_text) {
-      res.json({ reply: data[0].generated_text });
+    if (data?.choices?.[0]?.message?.content) {
+      res.json({ reply: data.choices[0].message.content });
     } else if (data.error) {
-      console.error("Hugging Face error:", data.error);
-      res.json({ reply: "The model is sleeping or busy. Try again in a few seconds." });
+      console.error("OpenRouter API error:", data.error);
+      res.json({ reply: "OpenRouter API error. Please check your API key or model." });
     } else {
-      res.json({ reply: "No response from the model." });
+      res.json({ reply: "No response received from model." });
     }
   } catch (error) {
     console.error("Server error:", error);
@@ -54,11 +58,11 @@ app.post("/chat", async (req, res) => {
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("Chatbot API is running ✅");
+  res.send("Chatbot (OpenRouter) API is running ✅");
 });
 
-// Render / local port
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Chatbot running on port ${PORT}`);
+  console.log(`✅ Chatbot (OpenRouter) running on port ${PORT}`);
 });
